@@ -14,17 +14,17 @@ func main() {
 	baseUrl := flag.String("base_url", "http://127.0.0.1:3333", "API URL")
 	authEndpoint := flag.String("auth_endpoint", "/auth/login", "Auth Endpoint")
 	writerEndpoint := flag.String("writer_endpoint", "/v1/writer", "Send Data Endpoint")
-	username := flag.String("username", "marcel", "API Username Auth")
-	password := flag.String("password", "marcel", "API Password Auth")
+	clientId := flag.String("clientId", "AC6CB1CB6A594EAFA8D9009ED01C0233", "API Username Auth")
+	clientSecret := flag.String("clientSecret", "c4c574780cab4b22bf8e69629992bc69", "API Password Auth")
 	dbName := flag.String("db_name", "pgsql", "Database Name (oracle, pgsql, sqlsrv)")
 	dbHost := flag.String("db_host", "127.0.0.1", "Database Host")
-	dbSID := flag.String("db_sid", "ionics", "Database SID")
+	dbSID := flag.String("db_sid", "saaf", "Database SID")
 	dbPort := flag.Int("db_port", 5432, "Database Port")
-	dbServiceName := flag.String("db_service_name", "ionics", "Database Service Name")
+	dbServiceName := flag.String("db_service_name", "saaf", "Database Service Name")
 	dbUsername := flag.String("db_username", "dev", "Database Username")
 	dbPassword := flag.String("db_password", "dev", "Database Password")
 	executionInterval := flag.Int("execution_interval", 0, "Execution Interval in Hours")
-	qtySendData := flag.Int("qty_sent_data", 100, "Quantity of data to send")
+	batchSize := flag.Int("batch_size", 500, "Quantity of data to send")
 	logPath := flag.String("log_path", `./output.log`, "Log Path") // C:\inovakpi\output.log
 	flag.Parse()
 
@@ -63,10 +63,10 @@ func main() {
 		baseUrl:           *baseUrl,
 		authEndpoint:      *authEndpoint,
 		writerEndpoint:    *writerEndpoint,
-		username:          *username,
-		password:          *password,
+		clientId:          *clientId,
+		clientSecret:      *clientSecret,
 		executionInterval: *executionInterval,
-		qtySendData:       *qtySendData,
+		batchSize:         *batchSize,
 		exit:              make(chan struct{}),
 	}
 
