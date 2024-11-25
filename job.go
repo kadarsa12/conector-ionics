@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"strconv"
 )
 
 type sendDataResponse struct {
@@ -87,8 +88,10 @@ func (c *Client) auth_login() (getAuthLoginResponse, error) {
 	return response, nil
 }
 
-func (c *Client) send_data(token string, records []map[string]interface{}) error {
-	payload, err := json.Marshal(records)
+func (c *Client) send_data(token string, records []map[string]interface{}, offset, customerID int, clientID string) error {
+	payload, err := json.Marshal(map[string]interface{}{
+		"records": records,
+	})
 	if err != nil {
 		return err
 	}
@@ -97,9 +100,20 @@ func (c *Client) send_data(token string, records []map[string]interface{}) error
 	if err != nil {
 		return err
 	}
+	if err != nil {
+		return err
+	}
 
 	req.Header = c.headers
 	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("CustomerID", strconv.Itoa(customerID))
+	req.Header.Set("ClientID", clientID)
+
+	if offset == 0 {
+		req.Header.Set("DeleteData", "1")
+	} else {
+		req.Header.Set("DeleteData", "0")
+	}
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -113,7 +127,7 @@ func (c *Client) send_data(token string, records []map[string]interface{}) error
 	}
 
 	if resp.StatusCode != 200 {
-		return errors.New("Failed to send records. BODY: " + string(body) + " STATUS: " + resp.Status)
+		return errors.New("Falha enviando os registros. STATUS: " + resp.Status)
 	}
 
 	response := sendDataResponse{}
@@ -123,7 +137,7 @@ func (c *Client) send_data(token string, records []map[string]interface{}) error
 	}
 
 	if response.Message != "success" {
-		return errors.New("Failed to send records. BODY: " + string(body))
+		return errors.New("Falha enviando os registros. BODY: " + string(body))
 	}
 
 	return nil
@@ -142,6 +156,7 @@ func RUN(db *database, baseUrl, authUrl, writerUrl, clientId, clientSecret strin
 		}
 
 		customerID := auth.User.CustomerId
+		clientID := auth.User.ClientId
 		token := auth.Token
 
 		if token == "" {
@@ -162,7 +177,7 @@ func RUN(db *database, baseUrl, authUrl, writerUrl, clientId, clientSecret strin
 				break
 			}
 
-			err = client.send_data(token, records)
+			err = client.send_data(token, records, offset, customerID, clientID)
 			if err != nil {
 				logger.Warn("Erro ao enviar registros para a API: " + err.Error())
 				break
@@ -172,7 +187,5 @@ func RUN(db *database, baseUrl, authUrl, writerUrl, clientId, clientSecret strin
 
 			offset += batchSize
 		}
-
-		// logger.Info("Sent data to API...")
 	}
 }

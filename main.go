@@ -24,8 +24,8 @@ func main() {
 	dbUsername := flag.String("db_username", "dev", "Database Username")
 	dbPassword := flag.String("db_password", "dev", "Database Password")
 	executionInterval := flag.Int("execution_interval", 0, "Execution Interval in Hours")
-	batchSize := flag.Int("batch_size", 30, "Quantity of data to send")
-	initialDate := flag.String("initial_date", "2024/09/01", "Initial date to fetch data")
+	batchSize := flag.Int("batch_size", 100, "Quantity of data to send")
+	initialDate := flag.String("initial_date", "2024/07/01", "Initial date to fetch data")
 	logPath := flag.String("log_path", `./output.log`, "Log Path") // C:\inovakpi\output.log
 	flag.Parse()
 
