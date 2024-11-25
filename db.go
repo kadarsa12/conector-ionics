@@ -99,16 +99,16 @@ func sqlsrv_connection(host *string, port *int, name, user, pass, sid *string) (
 	return &database{conn}, nil
 }
 
-func (d *database) get_data(batchSize, offset int) ([]map[string]interface{}, error) {
+func (d *database) get_data(batchSize, offset, customerID int, initialDate string) ([]map[string]interface{}, error) {
 	query :=
 		`select distinct
+	$3 as api_customer_id,
 	mpp.s_nome as nomeplanta,
 	mt.i_cod_m_pessoa_empresa as i_cod_m_pessoa_empresa,
 	mt.i_cod_m_transacao as i_cod_m_transacao,
 	mt.dt_transa as dt_transa,
 	ma.s_hora_inicial as s_hora_transa,
 	ma.s_hora_final as s_hora_trans_final,
-	mt.i_cod_transa_origem_estorno as i_cod_transa_origem_estorno,
 	mt.i_cod_b_tipo_transa as i_cod_b_tipo_transa,
 	rvkh.s_result_valid_km_hr as s_result_valid_km,
 	rvkh1.s_result_valid_km_hr as s_result_valid_hr,
@@ -411,12 +411,12 @@ where
 		or (1 = 1) )
 	and mt.dt_estorno is null
 	and mt.i_cod_transa_origem_estorno is null
-	and mt.dt_transa > cast('2024-01-01' as date)
+	and mt.dt_transa > cast($4 as date)
 	and dmt.f_quantidade > 0
 order by i_cod_m_transacao desc 
 LIMIT $1 OFFSET $2`
 
-	rows, err := d.Query(query, batchSize, offset)
+	rows, err := d.Query(query, batchSize, offset, customerID, initialDate)
 	if err != nil {
 		return nil, err
 	}

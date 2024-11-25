@@ -5,9 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"log"
 	"net/http"
 )
+
+type sendDataResponse struct {
+	Message string `json:"message"`
+}
 
 type Client struct {
 	baseUrl        string
@@ -20,10 +23,11 @@ type Client struct {
 }
 
 type User struct {
-	ID       int    `json:"id"`
-	Name     string `json:"name"`
-	Username string `json:"username"`
-	Role     string `json:"role"`
+	ID         int    `json:"id"`
+	Name       string `json:"name"`
+	ClientId   string `json:"clientId"`
+	CustomerId int    `json:"customerId"`
+	Role       string `json:"role"`
 }
 
 type getAuthLoginResponse struct {
@@ -50,7 +54,7 @@ func new_client(baseUrl, authEndpoint, writerEndpoint, clientId, clientSecret st
 func (c *Client) auth_login() (getAuthLoginResponse, error) {
 	empty := getAuthLoginResponse{}
 
-	bytesObj := []byte(`{"username":"` + c.clientId + `", "password":"` + c.clientSecret + `"}`)
+	bytesObj := []byte(`{"clientId":"` + c.clientId + `", "clientSecret":"` + c.clientSecret + `"}`)
 	bodyObj := bytes.NewBuffer(bytesObj)
 
 	req, err := http.NewRequest("POST", c.baseUrl+c.authEndpoint, bodyObj)
@@ -71,7 +75,7 @@ func (c *Client) auth_login() (getAuthLoginResponse, error) {
 	}
 
 	if resp.StatusCode != 200 {
-		return empty, errors.New("Failed to auth login. BODY: " + string(body))
+		return empty, errors.New("Falha no login. BODY: " + string(body))
 	}
 
 	response := getAuthLoginResponse{}
@@ -83,47 +87,49 @@ func (c *Client) auth_login() (getAuthLoginResponse, error) {
 	return response, nil
 }
 
-// func (c *Client) send_data(token string, batchSize int) error {
-// 	invoicesBody, err := json.Marshal(map[string]any{"invoices": invoices, "inserted": inserted, "not_found": notFound, "removed": disapproved})
-// 	if err != nil {
-// 		return err
-// 	}
+func (c *Client) send_data(token string, records []map[string]interface{}) error {
+	payload, err := json.Marshal(records)
+	if err != nil {
+		return err
+	}
 
-// 	req, err := http.NewRequest("POST", c.baseUrl+c.writerEndpoint, bytes.NewBuffer(invoicesBody))
-// 	if err != nil {
-// 		return err
-// 	}
-// 	req.Header = c.headers
+	req, err := http.NewRequest("POST", c.baseUrl+c.writerEndpoint, bytes.NewBuffer(payload))
+	if err != nil {
+		return err
+	}
 
-// 	resp, err := c.httpClient.Do(req)
-// 	if err != nil {
-// 		return err
-// 	}
-// 	defer resp.Body.Close()
+	req.Header = c.headers
+	req.Header.Set("Authorization", "Bearer "+token)
 
-// 	body, err := io.ReadAll(resp.Body)
-// 	if err != nil {
-// 		return err
-// 	}
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
 
-// 	if resp.StatusCode != 200 {
-// 		return errors.New("Failed to send invoices. BODY: " + string(body) + " STATUS: " + resp.Status)
-// 	}
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
 
-// 	response := sendInvoicesResponse{}
-// 	err = json.Unmarshal(body, &response)
-// 	if err != nil {
-// 		return err
-// 	}
+	if resp.StatusCode != 200 {
+		return errors.New("Failed to send records. BODY: " + string(body) + " STATUS: " + resp.Status)
+	}
 
-// 	if response.Status != "success" {
-// 		return errors.New("Failed to send invoices. BODY: " + string(body))
-// 	}
+	response := sendDataResponse{}
+	err = json.Unmarshal(body, &response)
+	if err != nil {
+		return err
+	}
 
-// 	return nil
-// }
+	if response.Message != "success" {
+		return errors.New("Failed to send records. BODY: " + string(body))
+	}
 
-func RUN(db *database, baseUrl, authUrl, writerUrl, clientId, clientSecret string, batchSize int) func() {
+	return nil
+}
+
+func RUN(db *database, baseUrl, authUrl, writerUrl, clientId, clientSecret string, batchSize int, initialDate string) func() {
 	client := new_client(baseUrl, authUrl, writerUrl, clientId, clientSecret)
 
 	return func() {
@@ -135,7 +141,9 @@ func RUN(db *database, baseUrl, authUrl, writerUrl, clientId, clientSecret strin
 			return
 		}
 
+		customerID := auth.User.CustomerId
 		token := auth.Token
+
 		if token == "" {
 			logger.Warn("Failed to get token")
 			return
@@ -143,64 +151,28 @@ func RUN(db *database, baseUrl, authUrl, writerUrl, clientId, clientSecret strin
 
 		offset := 0
 		for {
-			records, err := db.get_data(batchSize, offset)
+			records, err := db.get_data(batchSize, offset, customerID, initialDate)
 			if err != nil {
 				logger.Info("Erro ao buscar registros: " + err.Error())
 				break
 			}
 
 			if len(records) == 0 {
-				logger.Info("Nenhum registro encontrado, processo concluído.")
+				logger.Info("Processo concluído.")
 				break
 			}
 
-			log.Printf("Enviando %d registros", len(records))
+			err = client.send_data(token, records)
+			if err != nil {
+				logger.Warn("Erro ao enviar registros para a API: " + err.Error())
+				break
+			}
+
+			logger.Info("Enviando registros para a API", "Qtd:", len(records))
 
 			offset += batchSize
 		}
-		// client.headers.Set("Authorization", "Bearer "+token)
-		// data, err := client.send_data()
-		// if err != nil {
-		// 	logger.Warn("send_data: " + err.Error())
-		// 	return
-		// }
 
-		// err = db.insert_status(data.Approved, "L", data.CompanyID)
-		// if err != nil {
-		// 	logger.Warn("insert_status error: " + err.Error())
-		// }
-
-		// err = db.remove_status(data.Disapproved, data.CompanyID)
-		// if err != nil {
-		// 	logger.Warn("remove_status error: " + err.Error())
-		// }
-
-		// invoices, err := db.get_invoices(data.New)
-		// if err != nil {
-		// 	logger.Warn("get_invoices error: " + err.Error())
-		// 	return
-		// }
-
-		// notFound := []string{}
-		// for _, invoice := range data.New {
-		// 	found := false
-		// 	for _, i := range invoices {
-		// 		if i.NfeKey != nil && *i.NfeKey == invoice {
-		// 			found = true
-		// 			break
-		// 		}
-		// 	}
-		// 	if !found {
-		// 		notFound = append(notFound, invoice)
-		// 	}
-		// }
-
-		// err = client.send_invoices(invoices, data.Approved, notFound, data.Disapproved)
-		// if err != nil {
-		// 	logger.Warn(err.Error())
-		// 	return
-		// }
-
-		logger.Info("Sent data to API...")
+		// logger.Info("Sent data to API...")
 	}
 }

@@ -17,11 +17,12 @@ type program struct {
 	clientSecret      string
 	executionInterval int
 	batchSize         int
+	initialDate       string
 	exit              chan struct{}
 }
 
 func (p *program) Start(s service.Service) error {
-	go run_intervaled_job(p.executionInterval, RUN(p.db, p.baseUrl, p.authEndpoint, p.writerEndpoint, p.clientId, p.clientSecret, p.batchSize))
+	go run_intervaled_job(p.executionInterval, RUN(p.db, p.baseUrl, p.authEndpoint, p.writerEndpoint, p.clientId, p.clientSecret, p.batchSize, p.initialDate))
 	return nil
 }
 
